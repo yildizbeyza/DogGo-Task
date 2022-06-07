@@ -1,0 +1,61 @@
+ // For WalkingState "case class" has been opened. All the parameters listed in the case class are public and immutable by default.
+// The necessary inputs for WalkingState are written in this part.
+ 
+case class WalkingState(walkingId: UUID, ownerId: UUID, dogId: UUID, address: Address,
+                        deliveredBy: DeliveredBy, walkingType: ServiceType, status: OrderStatus,
+                        duration: Int, note: Option[String], doorKeeperPhone: Option[String], walks: Seq[Walk],
+                        operationalNote: Option[String])
+                        
+// For Walk "case class" has been opened. All the parameters listed in the case class are public and immutable by default.
+// The necessary inputs for Walk are written in this part. 
+
+case class Walk(walkId: UUID, walkerId: Option[UUID], paymentId: Option[UUID],
+                status: WalkStatus, startTime: Option[DateTime], endTime: Option[DateTime],
+                checkinTime: Option[DateTime], checkoutTime: Option[DateTime], confirmTime: Option[DateTime],
+                heat: Option[Heat], ratingByOwner: Option[WalkRating], ratingByWalker: Option[WalkRating],
+                cancelledBy: Option[UserType], distance: Option[Double], paths: Seq[Geo], pins: Seq[WalkingPin],
+                ownerFeedback: Option[OwnerFeedBack], walkerFeedback: Option[WalkerFeedBack], cancelReason: Option[String])
+
+
+
+// The 'val' modifier was used to define constants. val means constant or immutable; this means we cannot change its value after it is created. Required variables are defined.
+
+
+object WalkStatus extends Enumeration {
+  type WalkStatus = Value
+  val Matched, Unmatched, Confirmed, Started, Finished, Cancelled, Halted = Value
+
+  implicit val format: Format[WalkStatus] = JsonFormats.enumFormat(this)
+}
+
+object OrderStatus extends Enumeration {
+  type OrderStatus = Value
+  val Requested, Started, Finished, Cancelled, Halted = Value
+
+  implicit val format: Format[OrderStatus] = JsonFormats.enumFormat(this)
+}
+
+
+// “object-private.” When you do this, the method is available only to the current instance of the current object. Other instances of the same class cannot access the method.
+
+  private def onEventWalkCancelled(walkId: UUID, cancelledBy: UserType, cancelReason: Option[String], state: Option[WalkingState]): Option[WalkingState] = {
+    val walkingState: WalkingState = state.get
+    val walk: Option[Walk] = walkingState.walks.find(_.walkId == walkId)
+    val updatedWalk: Walk = walk.get.copy(status = WalkStatus.Cancelled, cancelledBy = Some(cancelledBy), cancelReason = cancelReason)
+    val updatedWalks: Seq[Walk] = walkingState.walks.filterNot(_.walkId == walkId) :+ updatedWalk
+
+    val allWalksHalted: Seq[Walk] = updatedWalks.filterNot(walk => walk.status == WalkStatus.Cancelled)
+    val newStatus: OrderStatus.Value = if (allWalksHalted.isEmpty) {
+      OrderStatus.Cancelled
+    } else if (allWalksHalted.forall(walk => walk.status == WalkStatus.Halted || walk.status == WalkStatus.Finished)) {
+      OrderStatus.Finished
+    } else {
+      OrderStatus.Started
+    }
+
+    Some(walkingState.copy(status = newStatus, walks = updatedWalks))
+  }
+
+// some class is closely related to Option class in scala. We use Option class in scala when the value of object can be null. To handle this we have two child classes of Option class in scala which are Some and None. Whenever we return any value from the Option it can either be instance of some or None. 
+In this part, some is used because the above inputs and this part of the code are closing.Written in WalkingState and walk parts. It has been related to the cancel part in the upper part.
+
